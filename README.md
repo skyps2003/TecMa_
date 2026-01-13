@@ -7,7 +7,7 @@
 
 ---
 
-## ✨ Características "God Tier"
+## ✨ Características
 
 ### 📦 1. Inventario 2.0 (Nueva Generación)
 - **⚡ Edición Rápida**: Control de stock (`+` / `-`) directamente desde las tarjetas. Sin recargas.
@@ -107,10 +107,3 @@ tecma-inventario/
 - **Bcrypt**: Hashing de contraseñas.
 - **Middleware**: Validación de roles (Admin/User).
 
----
-
-### © 2026 TECMA S.A.C.
-*Eficiencia que impulsa tu negocio.*
-=======
-# TecMa_
->>>>>>> 6db6c67900b86ad4cdec887df6f4993a6f924296
