@@ -1,7 +1,6 @@
-<<<<<<< HEAD
+
 # 🛠️ Sistema de Inventario TECMA | Enterprise Edition
 
-![TECMA Banner](https://via.placeholder.com/1200x400/0f172a/38bdf8?text=TECMA+INVENTARIO+v2.0)
 
 > **Gestión profesional de activos, repuestos y logística para talleres modernos.**  
 > Desarrollado con el Stack MERN (MongoDB, Express, React, Node) y diseño UI de alto impacto.
