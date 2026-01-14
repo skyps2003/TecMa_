@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Plus, Search, Package, Wrench, Trash2, ImageIcon, LayoutGrid, List, FileText, AlertTriangle, Edit2, Archive, DollarSign
+    Plus, Search, Package, Wrench, Trash2, ImageIcon, LayoutGrid, List, FileText, AlertTriangle, Edit2, Archive, DollarSign, Download
 } from 'lucide-react';
 import api from '../api/axios';
 import toast, { Toaster } from 'react-hot-toast';
@@ -13,9 +13,10 @@ const Inventory = () => {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [viewMode, setViewMode] = useState('grid');
+    const [filterType, setFilterType] = useState('all'); // 'all' | 'repuesto' | 'herramienta'
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Modal & Selection State
+    // ... (Modal & Selection State - Unchanged)
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedItemId, setSelectedItemId] = useState(null);
     const [editingItem, setEditingItem] = useState(null);
@@ -66,7 +67,7 @@ const Inventory = () => {
         if (item) {
             setEditingItem(item);
             setFormData({
-                item_type: item.item_type,
+                item_type: item.item_type || 'repuesto',
                 name: item.name,
                 category_id: item.category_id?._id || '',
                 supplier_id: item.supplier_id?._id || '',
@@ -75,7 +76,7 @@ const Inventory = () => {
                 purchase_price: item.purchase_price || '',
                 sale_price: item.sale_price || '',
                 brand: item.brand || '',
-                status: item.status
+                status: item.status || 'operativo'
             });
         } else {
             setEditingItem(null);
@@ -141,7 +142,7 @@ const Inventory = () => {
         setItems(updatedItems);
 
         try {
-            await api.put(`/inventory/${item._id}`, { ...item, stock: newStock, category_id: item.category_id._id, supplier_id: item.supplier_id?._id });
+            await api.put(`/inventory/${item._id}`, { ...item, stock: newStock, category_id: item.category_id?._id, supplier_id: item.supplier_id?._id });
             toast.success(`Stock actualizado: ${newStock}`, { icon: '📦', duration: 2000 });
         } catch (error) {
             toast.error("Error al actualizar stock");
@@ -149,10 +150,12 @@ const Inventory = () => {
         }
     };
 
-    const filteredItems = items.filter(item =>
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.brand?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredItems = items.filter(item => {
+        const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.brand?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesType = filterType === 'all' || item.item_type === filterType;
+        return matchesSearch && matchesType;
+    });
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -179,8 +182,8 @@ const Inventory = () => {
                     <p className="text-slate-500 dark:text-slate-400 mt-1 ml-1">Gestiona tus productos y existencias</p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="relative group">
+                <div className="flex flex-col sm:flex-row gap-3 items-center">
+                    <div className="relative group w-full sm:w-auto">
                         <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500 transition-colors" />
                         <input
                             type="text"
@@ -190,13 +193,37 @@ const Inventory = () => {
                             className="pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-64 transition-all shadow-sm"
                         />
                     </div>
+
+                    {/* Filter Tabs */}
+                    <div className="flex bg-slate-100 dark:bg-slate-700 rounded-xl p-1 shrink-0">
+                        <button
+                            onClick={() => setFilterType('all')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${filterType === 'all' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-800 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}
+                        >
+                            Todos
+                        </button>
+                        <button
+                            onClick={() => setFilterType('repuesto')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${filterType === 'repuesto' ? 'bg-white dark:bg-slate-600 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}
+                        >
+                            Repuestos
+                        </button>
+                        <button
+                            onClick={() => setFilterType('herramienta')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${filterType === 'herramienta' ? 'bg-white dark:bg-slate-600 shadow-sm text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}
+                        >
+                            Herramientas
+                        </button>
+                    </div>
+
                     <button
                         onClick={() => openModal()}
-                        className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-lg shadow-blue-500/30 transform active:scale-95"
+                        className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-lg shadow-blue-500/30 transform active:scale-95 whitespace-nowrap"
                     >
                         <Plus className="w-4 h-4" />
-                        Nuevo Producto
+                        Nuevo
                     </button>
+
                     <div className="flex bg-slate-100 dark:bg-slate-700 rounded-xl p-1 shrink-0">
                         <button
                             onClick={() => setViewMode('grid')}

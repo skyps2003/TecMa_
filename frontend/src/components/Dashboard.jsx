@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    PieChart, Pie, Cell,
-    LineChart, Line
+    PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import {
     Wrench,
@@ -10,7 +9,10 @@ import {
     AlertTriangle,
     TrendingUp,
     TrendingDown,
-    DollarSign
+    DollarSign,
+    Package,
+    ArrowUpRight,
+    ArrowDownRight
 } from 'lucide-react';
 import api from '../api/axios';
 
@@ -22,6 +24,16 @@ const Dashboard = () => {
         const fetchStats = async () => {
             try {
                 const { data } = await api.get('/dashboard/stats');
+
+                // Fallback for movement data if backend sends short days
+                // Ensuring we have full day names or consistent format if needed
+                if (data.charts?.movement) {
+                    data.charts.movement = data.charts.movement.map(m => ({
+                        ...m,
+                        total: m.entradas + m.salidas
+                    }));
+                }
+
                 setStats(data);
                 setLoading(false);
             } catch (error) {
@@ -35,8 +47,11 @@ const Dashboard = () => {
 
     if (loading) {
         return (
-            <div className="w-full h-full flex items-center justify-center">
-                <div className="text-blue-600 dark:text-blue-400 font-bold text-xl animate-pulse">Cargando datos...</div>
+            <div className="w-full h-96 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-600 rounded-full animate-spin"></div>
+                    <div className="text-slate-500 dark:text-slate-400 font-medium animate-pulse">Cargando Dashboard...</div>
+                </div>
             </div>
         );
     }
@@ -46,142 +61,310 @@ const Dashboard = () => {
     const investmentData = stats?.charts?.investment || [];
     const kpi = stats?.kpi || { inventoryValue: 0, lowStock: 0, toolsCount: 0, suppliersCount: 0 };
 
-    const COLORS = ['#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe'];
+    const CustomTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/50 p-4 rounded-xl shadow-xl">
+                    <p className="text-slate-200 font-semibold mb-2">{label}</p>
+                    {payload.map((entry, index) => (
+                        <div key={index} className="flex items-center gap-2 text-sm">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                            <span className="text-slate-400 capitalize">{entry.name}:</span>
+                            <span className="text-white font-mono font-medium">
+                                {typeof entry.value === 'number' && entry.name.toLowerCase().includes('valor')
+                                    ? `S/. ${entry.value.toLocaleString()}`
+                                    : entry.value}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+        return null;
+    };
 
     return (
-        <div className="space-y-8">
-            {/* Key Metrics Grid */}
+        <div className="space-y-8 animate-fade-in-up">
+            {/* Header Section */}
+            <div>
+                <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Resumen General</h1>
+                <p className="text-slate-500 dark:text-slate-400">Vista general del rendimiento del inventario y activos.</p>
+            </div>
+
+            {/* KPI Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
-                    title="Valor de Inventario"
+                    title="Valor Total"
                     value={`S/. ${kpi.inventoryValue.toLocaleString()}`}
-                    icon={<DollarSign className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />}
-                    trend="+12%"
+                    icon={<DollarSign className="w-6 h-6 text-emerald-500" />}
+                    trend="+12.5%"
                     trendUp={true}
-                    color="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800"
+                    color="from-emerald-500/20 to-emerald-500/5 border-emerald-500/20"
+                    iconBg="bg-emerald-500/20"
                 />
                 <StatCard
                     title="Stock Crítico"
-                    value={`${kpi.lowStock} Ítems`}
-                    icon={<AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />}
-                    subtext="Requiere atención"
-                    color="bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800"
+                    value={kpi.lowStock}
+                    unit="Ítems"
+                    icon={<AlertTriangle className="w-6 h-6 text-amber-500" />}
+                    subtext="Requiere reabastecimiento"
+                    alert={kpi.lowStock > 0}
+                    color="from-amber-500/20 to-amber-500/5 border-amber-500/20"
+                    iconBg="bg-amber-500/20"
                 />
                 <StatCard
-                    title="Total Herramientas"
+                    title="Herramientas"
                     value={kpi.toolsCount}
-                    icon={<Wrench className="w-6 h-6 text-blue-600 dark:text-blue-400" />}
-                    subtext="Activos registrados"
-                    color="bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800"
+                    unit="Unidades"
+                    icon={<Wrench className="w-6 h-6 text-blue-500" />}
+                    trend="+5"
+                    trendUp={true}
+                    color="from-blue-500/20 to-blue-500/5 border-blue-500/20"
+                    iconBg="bg-blue-500/20"
                 />
                 <StatCard
-                    title="Proveedores Activos"
+                    title="Proveedores"
                     value={kpi.suppliersCount}
-                    icon={<Users className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />}
+                    unit="Activos"
+                    icon={<Users className="w-6 h-6 text-indigo-500" />}
                     subtext="Verificados SUNAT"
-                    color="bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800"
+                    color="from-indigo-500/20 to-indigo-500/5 border-indigo-500/20"
+                    iconBg="bg-indigo-500/20"
                 />
             </div>
 
-            {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Investment Trend */}
-                <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors">
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 block">Evolución del Inventario</h3>
-                    <div className="h-80 w-full" style={{ minHeight: '320px' }}>
-                        <ResponsiveContainer width="99%" height="100%" debounce={200}>
-                            <LineChart data={investmentData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8' }} />
-                                <YAxis axisLine={false} tickLine={false} tickFormatter={(value) => `S/.${value / 1000}k`} tick={{ fill: '#94a3b8' }} domain={[0, 'auto']} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.5)', color: '#f8fafc' }}
-                                    formatter={(value) => [`S/. ${value}`, 'Valor']}
-                                    labelStyle={{ color: '#94a3b8' }}
-                                    itemStyle={{ color: '#f8fafc' }}
-                                />
-                                <Line
-                                    type="monotone"
-                                    dataKey="valor"
-                                    stroke="#3b82f6"
-                                    strokeWidth={3}
-                                    dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
-                                    activeDot={{ r: 6 }}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
+            {/* Main Charts Section - Row 1 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                {/* Category Distribution */}
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors">
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Distribución por Categoría</h3>
-                    <div className="h-60 relative w-full" style={{ minHeight: '240px' }}>
-                        <ResponsiveContainer width="99%" height="100%" debounce={200}>
-                            <PieChart>
-                                <Pie
-                                    data={categoryData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {categoryData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #334155', color: '#f8fafc', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.5)' }} itemStyle={{ color: '#f8fafc' }} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                        <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
-                            <span className="text-2xl font-bold text-slate-800 dark:text-white">{categoryData.reduce((acc, curr) => acc + curr.value, 0)}</span>
-                            <span className="text-xs text-slate-500 dark:text-slate-400">Ítems</span>
+                {/* Inventory Movement Bar Chart */}
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Movimiento de Inventario</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Entradas vs Salidas (Semanal)</p>
+                        </div>
+                        <div className="p-2 bg-slate-100 dark:bg-slate-700/50 rounded-lg">
+                            <Package className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                         </div>
                     </div>
-                    <div className="mt-4 space-y-2">
-                        {categoryData.map((cat, idx) => (
-                            <div key={idx} className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div>
-                                    <span className="text-slate-600 dark:text-slate-400">{cat.name}</span>
-                                </div>
-                                <span className="font-medium text-slate-800 dark:text-slate-200">
-                                    {categoryData.length > 0 ? ((cat.value / categoryData.reduce((acc, curr) => acc + curr.value, 0)) * 100).toFixed(0) : 0}%
-                                </span>
-                            </div>
-                        ))}
+                    <div className="h-72 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={movementData} barSize={12} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorEntradas" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.9} />
+                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.4} />
+                                    </linearGradient>
+                                    <linearGradient id="colorSalidas" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.9} />
+                                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0.4} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-700" opacity={0.5} />
+                                <XAxis
+                                    dataKey="name"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#64748b', fontSize: 12 }}
+                                    dy={10}
+                                />
+                                <YAxis
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#64748b', fontSize: 12 }}
+                                />
+                                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
+                                <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" />
+                                <Bar
+                                    name="Entradas"
+                                    dataKey="entradas"
+                                    fill="url(#colorEntradas)"
+                                    radius={[4, 4, 0, 0]}
+                                    animationDuration={1500}
+                                />
+                                <Bar
+                                    name="Salidas"
+                                    dataKey="salidas"
+                                    fill="url(#colorSalidas)"
+                                    radius={[4, 4, 0, 0]}
+                                    animationDuration={1500}
+                                    animationBegin={200}
+                                />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Investment Trend Bar Chart (Vertical) */}
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Tendencia de Inversión</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Valorización acumulada (Semestral)</p>
+                        </div>
+                        <div className="p-2 bg-slate-100 dark:bg-slate-700/50 rounded-lg">
+                            <TrendingUp className="w-5 h-5 text-violet-500" />
+                        </div>
+                    </div>
+                    <div className="h-72 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={investmentData} barSize={24} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorValor" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.9} />
+                                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-700" opacity={0.5} />
+                                <XAxis
+                                    dataKey="month"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#64748b', fontSize: 12 }}
+                                    dy={10}
+                                />
+                                <YAxis hide />
+                                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }} />
+                                <Bar
+                                    name="Valor de Inventario"
+                                    dataKey="valor"
+                                    fill="url(#colorValor)"
+                                    radius={[6, 6, 0, 0]}
+                                    animationDuration={1500}
+                                >
+
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
             </div>
 
+            {/* Secondary Charts Section - Row 2 */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Categories Distribution */}
+                <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Distribución por Categoría</h3>
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={categoryData} layout="vertical" barSize={20} margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorCategory" x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.9} />
+                                        <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.4} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-700" opacity={0.5} />
+                                <XAxis type="number" hide />
+                                <YAxis
+                                    dataKey="name"
+                                    type="category"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    width={100}
+                                    tick={{ fill: '#64748b', fontSize: 13, fontWeight: 500 }}
+                                />
+                                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }} />
+                                <Bar
+                                    name="Cantidad"
+                                    dataKey="value"
+                                    fill="url(#colorCategory)"
+                                    radius={[0, 4, 4, 0]}
+                                    animationDuration={1200}
+                                />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
 
+                {/* Tools Status - Donut Chart */}
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Estado de Herramientas</h3>
+                    <div className="h-64 w-full relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={stats?.charts?.toolsStatus || []}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={70}
+                                    outerRadius={90}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                    stroke="none"
+                                >
+                                    {(stats?.charts?.toolsStatus || []).map((entry, index) => {
+                                        const getColor = (status) => {
+                                            switch (status?.toLowerCase()) {
+                                                case 'operativo': return '#10b981'; // Emerald 500
+                                                case 'en mantenimiento': return '#f59e0b'; // Amber 500
+                                                case 'extraviado': return '#ef4444'; // Red 500
+                                                default: return '#94a3b8';
+                                            }
+                                        };
+                                        return (
+                                            <Cell
+                                                key={`cell-${index}`}
+                                                fill={getColor(entry.name)}
+                                                style={{ filter: 'drop-shadow(0px 4px 4px rgba(0,0,0,0.1))' }}
+                                            />
+                                        );
+                                    })}
+                                </Pie>
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                            </PieChart>
+                        </ResponsiveContainer>
+                        {/* Center Stats */}
+                        <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none pb-8">
+                            <span className="text-3xl font-bold text-slate-800 dark:text-white">
+                                {kpi.toolsCount}
+                            </span>
+                            <span className="text-xs uppercase tracking-wider font-semibold text-slate-400">Total</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
 
-// Helper Components
-const StatCard = ({ title, value, icon, trend, trendUp, subtext, color }) => (
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
-        <div className="flex items-start justify-between">
-            <div>
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{title}</p>
-                <h3 className="text-2xl font-bold text-slate-800 dark:text-white">{value}</h3>
+// Enhanced Stat Card Component
+const StatCard = ({ title, value, unit, icon, trend, trendUp, subtext, alert, color, iconBg }) => (
+    <div className={`
+        relative overflow-hidden bg-white dark:bg-slate-800 p-6 rounded-2xl border shadow-sm hover:shadow-md transition-all group
+        ${alert ? 'border-amber-200 dark:border-amber-900/50' : 'border-slate-200 dark:border-slate-700'}
+    `}>
+        {/* Background Gradient Effect */}
+        <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${color} blur-3xl rounded-full -mr-16 -mt-16 opacity-50 group-hover:opacity-70 transition-opacity`} />
+
+        <div className="relative">
+            <div className="flex items-start justify-between mb-4">
+                <div>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{title}</p>
+                    <div className="flex items-baseline gap-1">
+                        <h3 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight">{value}</h3>
+                        {unit && <span className="text-xs font-semibold text-slate-400">{unit}</span>}
+                    </div>
+                </div>
+                <div className={`p-3 rounded-xl ${iconBg} bg-opacity-10 backdrop-blur-sm group-hover:scale-110 transition-transform duration-300`}>
+                    {icon}
+                </div>
             </div>
-            <div className={`p-3 rounded-lg ${color}`}>
-                {icon}
+
+            <div className="flex items-center text-sm">
+                {trend ? (
+                    <span className={`flex items-center font-bold ${trendUp ? 'text-emerald-500' : 'text-rose-500'} bg-slate-50 dark:bg-slate-700/50 px-2 py-0.5 rounded-md`}>
+                        {trendUp ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                        {trend}
+                    </span>
+                ) : (
+                    <span className={`font-medium ${alert ? 'text-amber-500' : 'text-slate-400'}`}>
+                        {subtext || '----'}
+                    </span>
+                )}
+                {trend && <span className="text-slate-400 ml-2 text-xs">vs mes anterior</span>}
             </div>
-        </div>
-        <div className="mt-4 flex items-center text-sm">
-            {trend && (
-                <span className={`flex items-center font-medium ${trendUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                    {trendUp ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
-                    {trend}
-                </span>
-            )}
-            {subtext && <span className="text-slate-400 dark:text-slate-500">{subtext}</span>}
-            {trend && <span className="text-slate-400 dark:text-slate-500 ml-2">vs mes anterior</span>}
         </div>
     </div>
 );

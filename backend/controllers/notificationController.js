@@ -1,0 +1,48 @@
+import asyncHandler from 'express-async-handler';
+import Notification from '../models/Notification.js';
+
+// @desc    Get all notifications
+// @route   GET /api/notifications
+// @access  Private
+const getNotifications = asyncHandler(async (req, res) => {
+    const notifications = await Notification.find({})
+        .sort({ createdAt: -1 })
+        .limit(20);
+    res.json(notifications);
+});
+
+// @desc    Mark notification as read (or delete)
+// @route   DELETE /api/notifications/:id
+// @access  Private
+const deleteNotification = asyncHandler(async (req, res) => {
+    const notification = await Notification.findById(req.params.id);
+    if (notification) {
+        await notification.deleteOne();
+        res.json({ message: 'Notification removed' });
+    } else {
+        res.status(404);
+        throw new Error('Notification not found');
+    }
+});
+
+// @desc    Clear all notifications
+// @route   DELETE /api/notifications
+// @access  Private
+const clearNotifications = asyncHandler(async (req, res) => {
+    await Notification.deleteMany({});
+    res.json({ message: 'All notifications cleared' });
+});
+
+// @desc    Create notification (Internal use helper)
+export const createNotification = async (message, type = 'info') => {
+    try {
+        await Notification.create({
+            message,
+            type
+        });
+    } catch (error) {
+        console.error("Error creating notification:", error);
+    }
+};
+
+export { getNotifications, deleteNotification, clearNotifications };

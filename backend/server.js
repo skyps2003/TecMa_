@@ -10,6 +10,8 @@ import categoryRoutes from './routes/categoryRoutes.js';
 import supplierRoutes from './routes/supplierRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
 
+import notificationRoutes from './routes/notificationRoutes.js';
+
 dotenv.config();
 
 // Connect to Database
@@ -35,6 +37,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 
 const PORT = process.env.PORT || 5000;

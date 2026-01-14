@@ -40,7 +40,7 @@ const updateUserProfile = asyncHandler(async (req, res) => {
             user.name = req.body.name || user.name;
 
             if (req.file) {
-                user.perfil = `http://localhost:5000/uploads/${req.file.filename}`;
+                user.perfil = `/uploads/${req.file.filename}`;
             } else if (req.body.perfil) {
                 user.perfil = req.body.perfil;
             }

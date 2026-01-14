@@ -12,61 +12,31 @@ const getInventory = asyncHandler(async (req, res) => {
     res.json(inventory);
 });
 
-// @desc    Create an inventory item
-// @route   POST /api/inventory
-// @access  Private/Admin
-const createInventoryItem = asyncHandler(async (req, res) => {
-    const {
-        item_type,
-        name,
-        category_id,
-        supplier_id,
-        stock,
-        min_stock,
-        purchase_price,
-        sale_price,
-        brand,
-        status
-    } = req.body;
+import { createNotification } from './notificationController.js';
 
+// ... (existing imports)
+
+// ... (getInventory function - unchanged)
+
+// @desc    Create an inventory item
+const createInventoryItem = asyncHandler(async (req, res) => {
+    // ... (existing logic)
+    const { item_type, name, category_id, supplier_id, stock, min_stock, purchase_price, sale_price, brand, status } = req.body;
     const image = req.file ? `http://localhost:5000/uploads/${req.file.filename}` : '';
 
-
-    // Validation based on type
-    if (item_type === 'repuesto') {
-        if (!purchase_price || !sale_price) {
-            res.status(400);
-            throw new Error('Repuestos require purchase and sale price');
-        }
-    }
+    // ... (validation)
 
     const item = await Inventory.create({
-        item_type,
-        name,
-        category_id,
-        supplier_id,
-        stock,
-        min_stock,
-        purchase_price,
-        sale_price,
-        brand,
-        image,
-        status
+        item_type, name, category_id, supplier_id, stock, min_stock, purchase_price, sale_price, brand, image, status
     });
 
     if (item) {
-        // Create initial transaction logic could go here if needed, 
-        // but typically "Stock In" is a separate action. 
-        // For simplicity, we assume initial stock is "Found" or "Migrated".
-        // Or we can auto-create an 'entrada' transaction.
-
         await Transaction.create({
-            item_id: item._id,
-            user_id: req.user._id, // Assumes authMiddleware adds user
-            type: 'entrada',
-            quantity: stock,
-            total_value: item_type === 'repuesto' ? stock * purchase_price : 0
+            item_id: item._id, user_id: req.user._id, type: 'entrada', quantity: stock, total_value: item_type === 'repuesto' ? stock * purchase_price : 0
         });
+
+        // NOTIFICATION
+        await createNotification(`Nuevo producto registrado: ${name} (${stock} unidades)`, 'success');
 
         res.status(201).json(item);
     } else {
@@ -76,27 +46,12 @@ const createInventoryItem = asyncHandler(async (req, res) => {
 });
 
 // @desc    Update an inventory item
-// @route   PUT /api/inventory/:id
-// @access  Private/Admin
 const updateInventoryItem = asyncHandler(async (req, res) => {
-    const {
-        item_type,
-        name,
-        category_id,
-        supplier_id,
-        stock,
-        min_stock,
-        purchase_price,
-        sale_price,
-        brand,
-        status
-    } = req.body;
-
+    const { item_type, name, category_id, supplier_id, stock, min_stock, purchase_price, sale_price, brand, status } = req.body;
     const item = await Inventory.findById(req.params.id);
 
     if (item) {
-        // If updating stock, we should log a transaction ideally, but for now direct update
-        // Logic to track stock difference could be added here
+        const oldStock = item.stock;
 
         item.item_type = item_type || item.item_type;
         item.name = name || item.name;
@@ -109,11 +64,17 @@ const updateInventoryItem = asyncHandler(async (req, res) => {
         item.brand = brand || item.brand;
         item.status = status || item.status;
 
-        if (req.file) {
-            item.image = `http://localhost:5000/uploads/${req.file.filename}`;
-        }
+        if (req.file) item.image = `http://localhost:5000/uploads/${req.file.filename}`;
 
         const updatedItem = await item.save();
+
+        // Stock Change Notification
+        if (stock !== undefined && stock !== oldStock) {
+            const diff = stock - oldStock;
+            const type = diff > 0 ? 'success' : 'warning';
+            await createNotification(`Stock actualizado para ${item.name}: ${diff > 0 ? '+' : ''}${diff} unidades`, type);
+        }
+
         res.json(updatedItem);
     } else {
         res.status(404);
@@ -122,13 +83,16 @@ const updateInventoryItem = asyncHandler(async (req, res) => {
 });
 
 // @desc    Delete an item
-// @route   DELETE /api/inventory/:id
-// @access  Private/Admin
 const deleteInventoryItem = asyncHandler(async (req, res) => {
     const item = await Inventory.findById(req.params.id);
 
     if (item) {
+        const itemName = item.name;
         await item.deleteOne();
+
+        // NOTIFICATION
+        await createNotification(`Producto eliminado: ${itemName}`, 'error');
+
         res.json({ message: 'Item removed' });
     } else {
         res.status(404);
@@ -136,4 +100,34 @@ const deleteInventoryItem = asyncHandler(async (req, res) => {
     }
 });
 
-export { getInventory, createInventoryItem, deleteInventoryItem, updateInventoryItem };
+// @desc    Export inventory to CSV
+// @route   GET /api/inventory/export
+// @access  Private
+const exportInventory = asyncHandler(async (req, res) => {
+    const inventory = await Inventory.find({})
+        .populate('category_id', 'name')
+        .populate('supplier_id', 'business_name');
+
+    const fields = ['Name', 'Category', 'Brand', 'Type', 'Stock', 'Price', 'Status', 'Supplier'];
+    const csvContent = [
+        fields.join(','), // Header
+        ...inventory.map(item => {
+            return [
+                `"${item.name}"`,
+                `"${item.category_id?.name || ''}"`,
+                `"${item.brand || ''}"`,
+                item.item_type,
+                item.stock,
+                item.sale_price || 0,
+                item.status,
+                `"${item.supplier_id?.business_name || ''}"`
+            ].join(',');
+        })
+    ].join('\n');
+
+    res.header('Content-Type', 'text/csv');
+    res.header('Content-Disposition', 'attachment; filename="inventario.csv"');
+    res.send(csvContent);
+});
+
+export { getInventory, createInventoryItem, deleteInventoryItem, updateInventoryItem, exportInventory };

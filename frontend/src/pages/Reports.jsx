@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { FileText, Download, Printer, Filter, PieChart as PieIcon, BarChart as BarIcon } from 'lucide-react';
+import { FileText, Download, Printer, PieChart as PieIcon, BarChart as BarIcon } from 'lucide-react';
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-    AreaChart, Area, PieChart, Pie, Cell
+    AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import api from '../api/axios';
 import jsPDF from 'jspdf';
@@ -10,14 +9,12 @@ import autoTable from 'jspdf-autotable';
 import logo from '../assets/logo.png';
 import AuthContext from '../context/AuthProvider';
 import toast, { Toaster } from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 
 const Reports = () => {
     const { auth } = useContext(AuthContext);
     const [inventory, setInventory] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filterYear, setFilterYear] = useState(new Date().getFullYear());
-
-    // Chart Data States
     const [chartData, setChartData] = useState({
         monthlyCombined: [],
         stockRotation: [],
@@ -30,37 +27,27 @@ const Reports = () => {
 
     const fetchData = async () => {
         try {
-            // Fetch Inventory for Real Report
-            const { data: items } = await api.get('/inventory');
-            setInventory(items);
+            const [itemsRes, statsRes] = await Promise.all([
+                api.get('/inventory'),
+                api.get('/dashboard/stats')
+            ]);
 
-            // Fetch Dashboard Stats for Charts (Reuse existing endpoint or calculate local)
-            // For now, let's reuse the dashboard stats logic or mock the chart data based on inventory for realism if possible, 
-            // but the user wants REAL reports. We can aggregate inventory items for chart data locally.
+            setInventory(itemsRes.data);
+            const stats = statsRes.data;
 
-            // --- Aggregate Data for Charts ---
+            // Use backend investment data for the chart
+            // Ensure data structure matches Recharts expectation
+            const monthlyData = stats.charts?.investment || [];
 
-            // 1. Category Distribution
             const catMap = {};
-            items.forEach(item => {
+            itemsRes.data.forEach(item => {
                 const catName = item.category_id?.name || 'Sin Categoría';
                 catMap[catName] = (catMap[catName] || 0) + 1;
             });
             const distData = Object.keys(catMap).map(key => ({ name: key, value: catMap[key] }));
 
-            // 2. Stock Value (Tools vs Spares)
-            // Mocking Monthly Data for now as backend doesn't give historicals yet
-            const mockMonthly = [
-                { month: 'Ene', valor: 15400 },
-                { month: 'Feb', valor: 18200 },
-                { month: 'Mar', valor: 16800 },
-                { month: 'Abr', valor: 21500 },
-                { month: 'May', valor: 24100 },
-                { month: 'Jun', valor: 26623 },
-            ];
-
             setChartData({
-                monthlyCombined: mockMonthly,
+                monthlyCombined: monthlyData,
                 categoryDist: distData,
                 stockRotation: [
                     { name: 'Aceite', rotacion: 85 },
@@ -77,48 +64,79 @@ const Reports = () => {
         }
     };
 
+    const handleExcelExport = () => {
+        try {
+            const wb = XLSX.utils.book_new();
+
+            // Hoja 1: Repuestos
+            const repuestos = inventory.filter(i => i.item_type === 'repuesto').map(i => ({
+                Producto: i.name,
+                Categoría: i.category_id?.name || '-',
+                Proveedor: i.supplier_id?.business_name || '-',
+                'Precio Compra': i.purchase_price,
+                'Precio Venta': i.sale_price,
+                Stock: i.stock,
+                'Valor Total': i.stock * (i.purchase_price || 0)
+            }));
+            const wsRepuestos = XLSX.utils.json_to_sheet(repuestos);
+            XLSX.utils.book_append_sheet(wb, wsRepuestos, "Repuestos");
+
+            // Hoja 2: Herramientas
+            const herramientas = inventory.filter(i => i.item_type === 'herramienta').map(i => ({
+                Herramienta: i.name,
+                Categoría: i.category_id?.name || '-',
+                Marca: i.brand || '-',
+                Estado: i.status,
+                Stock: i.stock
+            }));
+            const wsHerramientas = XLSX.utils.json_to_sheet(herramientas);
+            XLSX.utils.book_append_sheet(wb, wsHerramientas, "Herramientas");
+
+            XLSX.writeFile(wb, `Reporte_Inventario_TECMA_${new Date().toISOString().split('T')[0]}.xlsx`);
+            toast.success("Excel generado exitosamente");
+        } catch (error) {
+            console.error(error);
+            toast.error("Error al generar Excel");
+        }
+    };
+
     const generatePDF = () => {
         const doc = new jsPDF();
         const date = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-        // --- Header ---
-        // Logo
         const imgProps = doc.getImageProperties(logo);
         const pdfWidth = doc.internal.pageSize.getWidth();
         const logoWidth = 30;
         const logoHeight = (imgProps.height * logoWidth) / imgProps.width;
         doc.addImage(logo, 'PNG', 14, 10, logoWidth, logoHeight);
 
-        // Company Info
         doc.setFontSize(18);
-        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setTextColor(15, 23, 42);
         doc.setFont("helvetica", "bold");
-        doc.text("TECMA S.A.C.", 50, 20);
+        doc.text("TEFMA MOTORS S.A.C.", 50, 20);
 
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(100);
-        doc.text("Reporte Oficial de Inventario", 50, 26);
-        doc.text("RUC: 20601234567 | Dirección: Av. Principal 123, Abancay", 50, 31);
+        doc.text("RUC: 20601234567", 50, 26);
+        doc.text("Reporte Oficial de Inventario", 50, 32);
 
-        // Meta Info (Right aligned)
+        doc.setFontSize(9);
+        doc.text("Dirección: CAL. ALTIPUERTO MZA. C ASC. ICHUBAMBILLA", 50, 37);
+
         doc.setFontSize(9);
         doc.setTextColor(80);
         doc.text(`Fecha: ${date}`, pdfWidth - 15, 20, { align: 'right' });
         doc.text(`Generado por: ${auth?.name || 'Administrador'}`, pdfWidth - 15, 25, { align: 'right' });
         doc.text(`Total Ítems: ${inventory.length}`, pdfWidth - 15, 30, { align: 'right' });
 
-        // Divider
         doc.setDrawColor(200);
         doc.line(14, 40, pdfWidth - 14, 40);
 
-        // --- TABLES ---
-
-        // 1. HERRAMIENTAS
         const tools = inventory.filter(i => i.item_type === 'herramienta');
         if (tools.length > 0) {
             doc.setFontSize(14);
-            doc.setTextColor(37, 99, 235); // Blue 600
+            doc.setTextColor(37, 99, 235);
             doc.setFont("helvetica", "bold");
             doc.text("1. HERRAMIENTAS", 14, 50);
 
@@ -139,13 +157,12 @@ const Reports = () => {
             });
         }
 
-        // 2. REPUESTOS (With Pricing)
         const spares = inventory.filter(i => i.item_type === 'repuesto');
         let finalY = doc.lastAutoTable?.finalY || 55;
 
         if (spares.length > 0) {
             doc.setFontSize(14);
-            doc.setTextColor(16, 185, 129); // Emerald 500
+            doc.setTextColor(16, 185, 129);
             doc.setFont("helvetica", "bold");
             doc.text("2. REPUESTOS Y SUMINISTROS", 14, finalY + 15);
 
@@ -172,7 +189,6 @@ const Reports = () => {
             });
         }
 
-        // --- TOTALS ---
         finalY = (doc.lastAutoTable?.finalY || finalY) + 10;
         const totalValue = spares.reduce((acc, curr) => acc + (curr.stock * (curr.purchase_price || 0)), 0);
 
@@ -190,7 +206,6 @@ const Reports = () => {
         doc.setFont("helvetica", "bold");
         doc.text(`S/. ${totalValue.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`, pdfWidth - 75, finalY + 16);
 
-        // Footer
         const totalPages = doc.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
@@ -230,7 +245,7 @@ const Reports = () => {
                         Exportar PDF Oficial
                     </button>
                     <button
-                        onClick={() => toast('Función Excel próximamente', { icon: '📊' })}
+                        onClick={handleExcelExport}
                         className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center gap-2 text-sm font-bold shadow-lg shadow-emerald-500/20 transition transform active:scale-95"
                     >
                         <Download className="w-4 h-4" />
@@ -239,9 +254,7 @@ const Reports = () => {
                 </div>
             </div>
 
-            {/* Main Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Chart 1: Inventory Value Trend */}
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -277,7 +290,6 @@ const Reports = () => {
                     </div>
                 </div>
 
-                {/* Chart 2: Category Distribution */}
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
                     <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-6">
                         <PieIcon className="w-5 h-5 text-purple-500" />
@@ -311,7 +323,6 @@ const Reports = () => {
                 </div>
             </div>
 
-            {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-500/30">
                     <p className="text-blue-100 text-sm font-medium mb-1">Total Herramientas</p>

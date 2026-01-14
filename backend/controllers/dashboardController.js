@@ -22,7 +22,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     const totalTools = await Inventory.countDocuments({ item_type: 'herramienta' });
     const activeSuppliers = await Supplier.countDocuments({ status: 'ACTIVO/HABIDO' });
 
-    // 2. Charts Data (Simplified for prototype)
+    // 2. Charts Data
     // Categories Distribution
     const categoryDistribution = await Inventory.aggregate([
         {
@@ -38,6 +38,100 @@ const getDashboardStats = asyncHandler(async (req, res) => {
         { $project: { name: '$_id', value: 1, _id: 0 } }
     ]);
 
+    // Tool Status Distribution
+    const toolsStatusDistribution = await Inventory.aggregate([
+        { $match: { item_type: 'herramienta' } },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+        { $project: { name: '$_id', value: '$count', _id: 0 } }
+    ]);
+
+    const toolsStatusChart = toolsStatusDistribution.length > 0 ? toolsStatusDistribution : [
+        { name: 'Operativo', value: 0 },
+        { name: 'En Mantenimiento', value: 0 }
+    ];
+
+    // Dynamic Investment Trend (Last 6 Months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1); // Start of that month
+
+    const monthlyInvestments = await Transaction.aggregate([
+        {
+            $match: {
+                type: 'entrada',
+                createdAt: { $gte: sixMonthsAgo }
+            }
+        },
+        {
+            $group: {
+                _id: {
+                    month: { $month: "$createdAt" },
+                    year: { $year: "$createdAt" }
+                },
+                total: { $sum: "$total_value" }
+            }
+        },
+        { $sort: { "_id.year": 1, "_id.month": 1 } }
+    ]);
+
+    // Format for investment chart
+    const investmentChart = [];
+    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const monthIndex = d.getMonth() + 1;
+        const year = d.getFullYear();
+
+        const found = monthlyInvestments.find(m => m._id.month === monthIndex && m._id.year === year);
+
+        investmentChart.push({
+            month: `${monthNames[monthIndex - 1]} ${year.toString().slice(-2)}`, // E.g., 'Dic 25'
+            valor: found ? found.total : 0
+        });
+    }
+
+    // Dynamic Weekly Movement (Last 7 Days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const weeklyMovements = await Transaction.aggregate([
+        {
+            $match: {
+                createdAt: { $gte: sevenDaysAgo }
+            }
+        },
+        {
+            $group: {
+                _id: {
+                    day: { $dayOfWeek: "$createdAt" }, // 1 (Sun) - 7 (Sat)
+                    type: "$type"
+                },
+                count: { $sum: 1 }
+            }
+        }
+    ]);
+
+    const dayNames = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+    const movementChart = [];
+
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dayIndex = d.getDay() + 1; // MongoDB $dayOfWeek is 1-based (1=Sun)
+
+        const entradas = weeklyMovements.find(m => m._id.day === dayIndex && m._id.type === 'entrada');
+        const salidas = weeklyMovements.find(m => m._id.day === dayIndex && m._id.type === 'salida');
+
+        movementChart.push({
+            name: dayNames[d.getDay()],
+            entradas: entradas ? entradas.count : 0,
+            salidas: salidas ? salidas.count : 0
+        });
+    }
+
     res.json({
         kpi: {
             inventoryValue: totalRepuestosValue[0]?.total || 0,
@@ -47,22 +141,9 @@ const getDashboardStats = asyncHandler(async (req, res) => {
         },
         charts: {
             categories: categoryDistribution,
-            // Mocking dynamic historical data for now to ensure chart renders nicely without complex date aggregation logic yet
-            investment: [
-                { month: 'Ene', valor: 12000 },
-                { month: 'Feb', valor: 15000 },
-                { month: 'Mar', valor: 14500 },
-                { month: 'Abr', valor: 18000 },
-                { month: 'May', valor: 22000 },
-                { month: 'Jun', valor: totalRepuestosValue[0]?.total || 25000 }
-            ],
-            movement: [
-                { name: 'Lun', entradas: 4, salidas: 2 },
-                { name: 'Mar', entradas: 3, salidas: 5 },
-                { name: 'Mie', entradas: 2, salidas: 8 },
-                { name: 'Jue', entradas: 6, salidas: 4 },
-                { name: 'Vie', entradas: 8, salidas: 3 },
-            ]
+            toolsStatus: toolsStatusChart,
+            investment: investmentChart,
+            movement: movementChart
         }
     });
 });

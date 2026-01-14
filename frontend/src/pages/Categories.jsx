@@ -9,6 +9,7 @@ const Categories = () => {
     const [loading, setLoading] = useState(true);
     const [formData, setFormData] = useState({ name: '', type: 'repuesto' });
     const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
+    const [filterType, setFilterType] = useState('all'); // 'all' | 'repuesto' | 'herramienta'
     const [searchTerm, setSearchTerm] = useState('');
 
     // Modal State
@@ -69,9 +70,11 @@ const Categories = () => {
         }
     };
 
-    const filteredCategories = categories.filter(cat =>
-        cat.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredCategories = categories.filter(cat => {
+        const matchesSearch = cat.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesType = filterType === 'all' || cat.type === filterType;
+        return matchesSearch && matchesType;
+    });
 
     const stats = {
         total: categories.length,
@@ -166,8 +169,8 @@ const Categories = () => {
                                         type="button"
                                         onClick={() => setFormData({ ...formData, type: 'repuesto' })}
                                         className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${formData.type === 'repuesto'
-                                                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500'
-                                                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500'
+                                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500'
+                                            : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500'
                                             }`}
                                     >
                                         <Settings className="w-6 h-6" />
@@ -177,8 +180,8 @@ const Categories = () => {
                                         type="button"
                                         onClick={() => setFormData({ ...formData, type: 'herramienta' })}
                                         className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${formData.type === 'herramienta'
-                                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 ring-1 ring-amber-500'
-                                                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500'
+                                            ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 ring-1 ring-amber-500'
+                                            : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500'
                                             }`}
                                     >
                                         <Wrench className="w-6 h-6" />
@@ -201,30 +204,56 @@ const Categories = () => {
                 {/* Lista de Categorías */}
                 <div className="lg:col-span-2 space-y-4">
                     {/* Controls */}
-                    <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <div className="relative group">
+                    <div className="flex flex-col sm:flex-row items-center justify-between bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm gap-4">
+                        <div className="relative group w-full sm:w-auto">
                             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500 transition-colors" />
                             <input
                                 type="text"
                                 placeholder="Buscar categoría..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-9 pr-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white text-sm transition-all"
+                                className="pl-9 pr-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-64 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white text-sm transition-all"
                             />
                         </div>
-                        <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
-                            <button
-                                onClick={() => setViewMode('grid')}
-                                className={`p-2 rounded-md transition ${viewMode === 'grid' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-800 dark:text-white' : 'text-slate-400'}`}
-                            >
-                                <LayoutGrid className="w-4 h-4" />
-                            </button>
-                            <button
-                                onClick={() => setViewMode('list')}
-                                className={`p-2 rounded-md transition ${viewMode === 'list' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-800 dark:text-white' : 'text-slate-400'}`}
-                            >
-                                <ListIcon className="w-4 h-4" />
-                            </button>
+
+                        <div className="flex gap-4">
+                            {/* Filter Tabs */}
+                            <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
+                                <button
+                                    onClick={() => setFilterType('all')}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${filterType === 'all' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-800 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}
+                                >
+                                    Todos
+                                </button>
+                                <button
+                                    onClick={() => setFilterType('repuesto')}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${filterType === 'repuesto' ? 'bg-white dark:bg-slate-600 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}
+                                >
+                                    Repuestos
+                                </button>
+                                <button
+                                    onClick={() => setFilterType('herramienta')}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${filterType === 'herramienta' ? 'bg-white dark:bg-slate-600 shadow-sm text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}
+                                >
+                                    Herramientas
+                                </button>
+                            </div>
+
+                            {/* View Mode */}
+                            <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
+                                <button
+                                    onClick={() => setViewMode('grid')}
+                                    className={`p-2 rounded-md transition ${viewMode === 'grid' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-800 dark:text-white' : 'text-slate-400'}`}
+                                >
+                                    <LayoutGrid className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('list')}
+                                    className={`p-2 rounded-md transition ${viewMode === 'list' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-800 dark:text-white' : 'text-slate-400'}`}
+                                >
+                                    <ListIcon className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -235,8 +264,8 @@ const Categories = () => {
                                 <div key={cat._id} className="group bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-700 transition-all hover:-translate-y-1 flex justify-between items-start">
                                     <div className="flex items-start gap-4">
                                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${cat.type === 'repuesto'
-                                                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600'
-                                                : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600'
+                                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600'
+                                            : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600'
                                             }`}>
                                             {cat.type === 'repuesto' ? <Settings className="w-6 h-6" /> : <Wrench className="w-6 h-6" />}
                                         </div>

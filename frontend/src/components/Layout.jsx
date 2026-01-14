@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
@@ -21,6 +21,7 @@ import AuthContext from '../context/AuthProvider';
 import ThemeContext from '../context/ThemeContext';
 import logo from '../assets/logo.png';
 import { Toaster } from 'react-hot-toast';
+import api from '../api/axios';
 
 const Layout = ({ children }) => {
     const { auth, logout } = useContext(AuthContext);
@@ -28,15 +29,6 @@ const Layout = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [showNotifications, setShowNotifications] = useState(false);
-
-    // Enhanced Mock Notifications
-    const notifications = [
-        { id: 1, text: "Stock bajo: Aceite Motor (2 u)", type: "warning", time: "Hace 5 min" },
-        { id: 2, text: "Nuevo proveedor registrado: GLORIA S.A.", type: "success", time: "Hace 20 min" },
-        { id: 3, text: "Copia de seguridad completada", type: "info", time: "Hace 1 hora" },
-        { id: 4, text: "Error de sincronización SUNAT", type: "error", time: "Hace 2 horas" }
-    ];
 
     const handleLogout = () => {
         logout();
@@ -61,11 +53,11 @@ const Layout = ({ children }) => {
             <aside className={`w-64 bg-[#0f172a] dark:bg-slate-950 text-white flex flex-col fixed h-full z-40 transition-transform duration-300 ease-in-out shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
                 <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-800/50 bg-[#0f172a] dark:bg-slate-950 z-10">
                     <div className="w-8 h-8 rounded-lg bg-white p-0.5 flex items-center justify-center shrink-0 shadow-lg shadow-blue-900/20">
-                        <img src={logo} alt="TECMA" className="w-full h-full object-contain" />
+                        <img src={logo} alt="TEFMA" className="w-full h-full object-contain" />
                     </div>
                     <div>
-                        <h1 className="text-lg font-bold tracking-wide font-display">TECMA</h1>
-                        <p className="text-[10px] text-slate-400 font-medium tracking-wider">INVENTARIO</p>
+                        <h1 className="text-lg font-bold tracking-wide font-display">TEFMA MOTORS</h1>
+                        <p className="text-[10px] text-slate-400 font-medium tracking-wider">S.A.C.</p>
                     </div>
                     <button onClick={() => setSidebarOpen(false)} className="md:hidden ml-auto text-slate-400 hover:text-white transition">
                         <X className="w-6 h-6" />
@@ -114,20 +106,24 @@ const Layout = ({ children }) => {
                                 <Menu className="w-6 h-6" />
                             </button>
                             <h2 className="text-xl font-bold text-slate-800 dark:text-white capitalize hidden md:block">
-                                {location.pathname === '/reports' ? 'Reportes' : location.pathname.replace('/', '')}
+                                {(() => {
+                                    const path = location.pathname.substring(1);
+                                    const titles = {
+                                        'dashboard': 'Dashboard',
+                                        'inventory': 'Inventario General',
+                                        'suppliers': 'Proveedores',
+                                        'categories': 'Categorías',
+                                        'reports': 'Reportes Inteligentes',
+                                        'profile': 'Mi Perfil'
+                                    };
+                                    return titles[path] || path;
+                                })()}
                             </h2>
                         </div>
 
                         <div className="flex items-center gap-3 md:gap-5">
-                            {/* Search */}
-                            <div className="relative hidden md:block group">
-                                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-blue-500 transition-colors" />
-                                <input
-                                    type="text"
-                                    placeholder="Buscar..."
-                                    className="pl-9 pr-4 py-2 rounded-full border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-64 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white text-sm placeholder-slate-400 transition-all focus:w-72"
-                                />
-                            </div>
+                            {/* Search Removed by request */}
+                            <div className="hidden md:block"></div>
 
                             <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1 hidden md:block"></div>
 
@@ -139,50 +135,10 @@ const Layout = ({ children }) => {
                                 {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                             </button>
 
-                            {/* Notifications */}
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowNotifications(!showNotifications)}
-                                    className={`p-2.5 relative text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition ${showNotifications ? 'bg-slate-100 dark:bg-slate-700 text-blue-600 dark:text-blue-400' : ''}`}
-                                >
-                                    <Bell className="w-5 h-5" />
-                                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-800 animate-pulse"></span>
-                                </button>
-
-                                {showNotifications && (
-                                    <div className="absolute right-0 mt-3 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right ring-1 ring-black/5">
-                                        <div className="p-4 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                                            <span className="font-bold text-sm text-slate-800 dark:text-white">Notificaciones</span>
-                                            <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full font-bold">4 Nuevas</span>
-                                        </div>
-                                        <div className="max-h-[300px] overflow-y-auto">
-                                            {notifications.map(n => (
-                                                <div key={n.id} className="p-4 border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex gap-3 items-start cursor-pointer transition-colors group">
-                                                    <div className={`mt-0.5 p-1.5 rounded-full shrink-0 ${n.type === 'warning' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30' :
-                                                        n.type === 'success' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' :
-                                                            n.type === 'error' ? 'bg-red-100 text-red-600 dark:bg-red-900/30' :
-                                                                'bg-blue-100 text-blue-600 dark:bg-blue-900/30'
-                                                        }`}>
-                                                        {n.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm text-slate-700 dark:text-slate-200 font-medium leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{n.text}</p>
-                                                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-medium">{n.time}</p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="p-3 text-center border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-                                            <button className="text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">Marcar todo como leído</button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
                             <Link to="/profile" className="flex items-center gap-3 pl-4 md:border-l border-slate-200 dark:border-slate-600 cursor-pointer group">
                                 <div className="relative">
                                     <img
-                                        src={auth?.perfil || "https://ui-avatars.com/api/?background=0f172a&color=fff&bold=true"}
+                                        src={auth?.perfil?.startsWith('/') ? `http://localhost:5000${auth.perfil}` : (auth?.perfil || "https://ui-avatars.com/api/?background=0f172a&color=fff&bold=true")}
                                         alt="Profile"
                                         className="w-9 h-9 rounded-full shadow-sm object-cover ring-2 ring-white dark:ring-slate-700 group-hover:ring-blue-100 dark:group-hover:ring-slate-600 transition-all"
                                     />
