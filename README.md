@@ -113,6 +113,13 @@ npm run dev
 # Deberías ver: Server running on port 5000
 ```
 
+### 2.1 Carga de Datos de Prueba (Seed)
+Para poblar la base de datos con información de ejemplo (Usuarios, Productos, Proveedores), ejecuta en la carpeta `backend`:
+```bash
+node seeder.js
+```
+> **Nota:** Esto eliminará los datos existentes y creará un set nuevo de prueba.
+
 ### 3. Configurar el Frontend (Interfaz)
 Abre una nueva terminal:
 ```bash
